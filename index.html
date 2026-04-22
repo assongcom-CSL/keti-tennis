@@ -25,7 +25,7 @@ const firebaseConfig = {
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
-  const SESSION = "28기1회차_20260429";
+  const SESSION = "27기4회차_20260422";
 
   // 실시간 리스너 — DB 변경시 즉시 화면 업데이트
   onValue(ref(db, `attendance/${SESSION}`), (snapshot) => {
