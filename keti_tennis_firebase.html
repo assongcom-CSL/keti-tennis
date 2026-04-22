@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KETI 테니스동호회 출석 조사</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Bebas+Neue&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ✅ 여기에 본인의 Firebase 설정값을 붙여넣으세요
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "YOUR_PROJECT",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const SESSION = "27기4회차_20260422";
+
+  // 실시간 리스너 — DB 변경시 즉시 화면 업데이트
+  onValue(ref(db, `attendance/${SESSION}`), (snapshot) => {
+    const data = snapshot.val() || {};
+    window.__fbData = data;
+    renderResults(data);
+    syncCardStyles(data);
+  });
+
+  // 상태 저장
+  window.saveToFirebase = function(index, status, memo) {
+    const item = schedule[index];
+    set(ref(db, `attendance/${SESSION}/${index}`), {
+      cls: item.cls,
+      time: item.time,
+      name: item.name,
+      status: status,
+      memo: memo,
+      updatedAt: new Date().toISOString()
+    });
+  };
+</script>
+
+<style>
+  :root {
+    --court-green: #2d5a27;
+    --court-light: #4a8c3f;
+    --court-line: #a8d5a2;
+    --ball-yellow: #d4e157;
+    --ball-glow: #c6d930;
+    --bg-dark: #0f1f0d;
+    --bg-mid: #162a12;
+    --surface: #1e3a18;
+    --surface-light: #264d1f;
+    --text-primary: #e8f5e2;
+    --text-muted: #7fad72;
+    --attend-color: #56d45b;
+    --absent-color: #ff5252;
+    --accent: #d4e157;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(168,213,162,0.04) 60px),
+      repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(168,213,162,0.04) 60px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+
+  /* Header */
+  .header { text-align: center; margin-bottom: 40px; animation: fadeDown 0.7s ease both; }
+  .header-badge {
+    display: inline-block;
+    background: var(--court-green);
+    border: 1px solid var(--court-line);
+    color: var(--court-line);
+    font-size: 11px; font-weight: 700; letter-spacing: 3px;
+    padding: 6px 18px; border-radius: 2px; margin-bottom: 20px;
+    text-transform: uppercase;
+  }
+  .header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(36px, 8vw, 64px);
+    letter-spacing: 4px; line-height: 1;
+    color: var(--text-primary);
+    text-shadow: 0 0 40px rgba(212,225,87,0.3);
+    margin-bottom: 12px;
+  }
+  .header h1 span { color: var(--ball-yellow); }
+  .header-meta { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-top: 16px; }
+  .meta-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); font-weight: 500; }
+  .meta-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ball-yellow); }
+
+  /* Live indicator */
+  .live-bar {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; margin-bottom: 28px;
+    font-size: 12px; color: var(--text-muted);
+  }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--attend-color);
+    box-shadow: 0 0 0 0 rgba(86,212,91,0.6);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(86,212,91,0.6); }
+    70% { box-shadow: 0 0 0 8px rgba(86,212,91,0); }
+    100% { box-shadow: 0 0 0 0 rgba(86,212,91,0); }
+  }
+
+  /* Progress */
+  .progress-bar-wrap { background: var(--surface); border-radius: 4px; height: 6px; overflow: hidden; margin-bottom: 32px; }
+  .progress-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--attend-color), var(--ball-yellow)); transition: width 0.5s ease; width: 0%; }
+
+  /* Section label */
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 3px;
+    color: var(--text-muted); text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--surface-light); }
+
+  /* Cards */
+  .schedule-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px; }
+  .schedule-card {
+    background: var(--surface);
+    border: 1px solid var(--surface-light);
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 20px;
+    transition: all 0.25s ease;
+    animation: fadeUp 0.5s ease both;
+    position: relative; overflow: hidden;
+  }
+  .schedule-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--surface-light); transition: background 0.25s ease;
+  }
+  .schedule-card.checked-attend::before { background: var(--attend-color); }
+  .schedule-card.checked-absent::before { background: var(--absent-color); }
+  .schedule-card:hover { border-color: var(--court-line); transform: translateX(3px); }
+
+  .time-block { text-align: center; min-width: 64px; }
+  .time-text { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 1px; color: var(--ball-yellow); line-height: 1; }
+  .class-badge {
+    display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 1px;
+    background: var(--surface-light); color: var(--text-muted);
+    padding: 3px 8px; border-radius: 4px; margin-top: 4px;
+  }
+  .name-block { display: flex; flex-direction: column; gap: 4px; }
+  .name-text { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
+
+  .attend-toggle { display: flex; gap: 8px; }
+  .toggle-btn {
+    border: 1.5px solid transparent; border-radius: 8px; padding: 8px 16px;
+    font-size: 13px; font-weight: 700; font-family: 'Noto Sans KR', sans-serif;
+    cursor: pointer; transition: all 0.2s ease;
+    background: var(--bg-mid); color: var(--text-muted); border-color: var(--surface-light);
+  }
+  .toggle-btn.attend { border-color: var(--attend-color); color: var(--attend-color); }
+  .toggle-btn.absent { border-color: var(--absent-color); color: var(--absent-color); }
+  .toggle-btn.attend.active { background: var(--attend-color); color: #0a1f0a; }
+  .toggle-btn.absent.active { background: var(--absent-color); color: #fff; }
+
+  /* Memo */
+  .card-full { grid-column: 1 / -1; }
+  .memo-block { margin-top: 12px; display: none; }
+  .memo-block.visible { display: block; }
+  .memo-textarea {
+    width: 100%; background: var(--bg-mid);
+    border: 1px solid var(--surface-light); border-radius: 8px;
+    color: var(--text-primary); font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13px; padding: 10px 14px; resize: vertical; min-height: 60px;
+    outline: none; transition: border-color 0.2s ease;
+  }
+  .memo-textarea::placeholder { color: var(--text-muted); }
+  .memo-textarea:focus { border-color: var(--court-line); }
+  .memo-toggle {
+    background: none; border: none; color: var(--text-muted);
+    font-family: 'Noto Sans KR', sans-serif; font-size: 12px;
+    cursor: pointer; padding: 6px 0 0; display: block;
+    transition: color 0.2s ease; text-decoration: underline; text-underline-offset: 3px;
+  }
+  .memo-toggle:hover { color: var(--court-line); }
+
+  /* Divider */
+  .divider { height: 1px; background: var(--surface-light); margin: 48px 0; }
+
+  /* Results */
+  .results-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+  .result-stat { background: var(--surface); border: 1px solid var(--surface-light); border-radius: 12px; padding: 20px; text-align: center; }
+  .stat-number { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 2px; line-height: 1; margin-bottom: 6px; }
+  .stat-number.total { color: var(--ball-yellow); }
+  .stat-number.attend { color: var(--attend-color); }
+  .stat-number.absent { color: var(--absent-color); }
+  .stat-label { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--text-muted); text-transform: uppercase; }
+
+  .result-detail { display: flex; flex-direction: column; gap: 8px; }
+  .result-row {
+    background: var(--surface); border: 1px solid var(--surface-light);
+    border-radius: 8px; padding: 12px 18px;
+    display: grid; grid-template-columns: 80px 1fr auto auto;
+    align-items: center; gap: 12px; font-size: 14px;
+    transition: all 0.3s ease;
+  }
+  .result-row.attend-row { border-left: 3px solid var(--attend-color); }
+  .result-row.absent-row { border-left: 3px solid var(--absent-color); }
+  .result-row.pending-row { border-left: 3px solid var(--surface-light); opacity: 0.5; }
+  .result-time { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: var(--ball-yellow); }
+  .result-name { font-weight: 600; }
+  .result-class { font-size: 11px; color: var(--text-muted); text-align: right; }
+  .status-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+  .status-chip.attend { background: rgba(86,212,91,0.15); color: var(--attend-color); }
+  .status-chip.absent { background: rgba(255,82,82,0.15); color: var(--absent-color); }
+  .status-chip.pending { background: var(--surface-light); color: var(--text-muted); }
+  .result-memo { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); padding: 4px 0 2px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 30px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--attend-color); color: #0a1f0a;
+    font-weight: 700; font-size: 14px; padding: 14px 28px;
+    border-radius: 30px; opacity: 0; transition: all 0.4s ease;
+    pointer-events: none; white-space: nowrap; z-index: 100;
+    box-shadow: 0 8px 30px rgba(86,212,91,0.4);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  .schedule-card:nth-child(1){animation-delay:.05s} .schedule-card:nth-child(2){animation-delay:.1s}
+  .schedule-card:nth-child(3){animation-delay:.15s} .schedule-card:nth-child(4){animation-delay:.2s}
+  .schedule-card:nth-child(5){animation-delay:.25s} .schedule-card:nth-child(6){animation-delay:.3s}
+  .schedule-card:nth-child(7){animation-delay:.35s}
+
+  @media (max-width: 520px) {
+    .schedule-card { grid-template-columns: auto 1fr; }
+    .attend-toggle { grid-column: 1 / -1; }
+    .result-row { grid-template-columns: 60px 1fr auto; }
+    .result-class { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-badge">🎾 KETI 테니스동호회 · 초빙레슨</div>
+    <h1>출석<span>조사</span></h1>
+    <div class="header-meta">
+      <div class="meta-item"><span class="meta-dot"></span> 27기 4회차</div>
+      <div class="meta-item"><span class="meta-dot"></span> 2026년 4월 22일 (수)</div>
+      <div class="meta-item"><span class="meta-dot"></span> 총 7명</div>
+    </div>
+  </div>
+
+  <div class="live-bar">
+    <div class="live-dot"></div>
+    실시간 집계 중 — 모든 응답이 즉시 반영됩니다
+  </div>
+
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="progressBar"></div>
+  </div>
+
+  <div class="section-label">시간표 &amp; 출석 체크</div>
+  <div class="schedule-list" id="scheduleList"></div>
+
+  <div class="divider"></div>
+
+  <!-- 실시간 결과는 항상 표시 -->
+  <div class="section-label">실시간 집계 결과</div>
+  <div class="results-grid">
+    <div class="result-stat"><div class="stat-number total">7</div><div class="stat-label">전체</div></div>
+    <div class="result-stat"><div class="stat-number attend" id="attendCount">0</div><div class="stat-label">출석</div></div>
+    <div class="result-stat"><div class="stat-number absent" id="absentCount">0</div><div class="stat-label">결석</div></div>
+  </div>
+  <div class="result-detail" id="resultDetail"></div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const schedule = [
+    { cls: 'X반1', time: '18:00', name: '강미혜' },
+    { cls: 'X반2', time: '18:20', name: '홍혁기' },
+    { cls: 'X반3', time: '18:40', name: '노정은' },
+    { cls: 'Y반1', time: '19:00', name: '강민수' },
+    { cls: 'Y반2', time: '19:20', name: '이경일' },
+    { cls: 'Y반3', time: '19:40', name: '송홍주' },
+    { cls: 'Z반1', time: '20:00', name: '박윤상' },
+  ];
+
+  // 로컬 상태 (메모 토글용)
+  const localState = schedule.map(() => ({ memoVisible: false, memo: '' }));
+
+  function renderCards() {
+    const list = document.getElementById('scheduleList');
+    list.innerHTML = '';
+    schedule.forEach((item, i) => {
+      const card = document.createElement('div');
+      card.className = 'schedule-card';
+      card.id = `card-${i}`;
+      card.innerHTML = `
+        <div class="time-block">
+          <div class="time-text">${item.time}</div>
+          <div class="class-badge">${item.cls}</div>
+        </div>
+        <div class="name-block">
+          <div class="name-text">${item.name}</div>
+          <button class="memo-toggle" id="memo-toggle-${i}" onclick="toggleMemo(${i})">✏ 메모 남기기</button>
+        </div>
+        <div class="attend-toggle">
+          <button class="toggle-btn attend" id="btn-attend-${i}" onclick="setStatus(${i}, 'attend')">출석</button>
+          <button class="toggle-btn absent" id="btn-absent-${i}" onclick="setStatus(${i}, 'absent')">결석</button>
+        </div>
+        <div class="memo-block card-full" id="memo-block-${i}">
+          <textarea class="memo-textarea" id="memo-${i}" placeholder="메모를 입력하세요..." oninput="memoChanged(${i})"></textarea>
+        </div>
+      `;
+      list.appendChild(card);
+    });
+  }
+
+  function setStatus(i, status) {
+    const fbData = window.__fbData || {};
+    const current = fbData[i]?.status;
+    const newStatus = current === status ? null : status;
+    const memo = localState[i].memo || fbData[i]?.memo || '';
+    if (window.saveToFirebase) {
+      window.saveToFirebase(i, newStatus, memo);
+      showToast(newStatus === 'attend' ? '✅ 출석으로 저장했어요' : newStatus === 'absent' ? '❌ 결석으로 저장했어요' : '↩ 응답을 취소했어요');
+    }
+  }
+
+  function memoChanged(i) {
+    const ta = document.getElementById(`memo-${i}`);
+    localState[i].memo = ta ? ta.value : '';
+    // 메모 변경시 자동 저장 (상태가 있을 때만)
+    const fbData = window.__fbData || {};
+    const status = fbData[i]?.status || null;
+    if (status && window.saveToFirebase) {
+      window.saveToFirebase(i, status, localState[i].memo);
+    }
+  }
+
+  function toggleMemo(i) {
+    localState[i].memoVisible = !localState[i].memoVisible;
+    const block = document.getElementById(`memo-block-${i}`);
+    const btn = document.getElementById(`memo-toggle-${i}`);
+    if (block) block.classList.toggle('visible', localState[i].memoVisible);
+    if (btn) btn.textContent = localState[i].memoVisible ? '✕ 메모 닫기' : '✏ 메모 남기기';
+  }
+
+  function syncCardStyles(data) {
+    let done = 0;
+    schedule.forEach((_, i) => {
+      const s = data[i];
+      const status = s?.status || null;
+      if (status) done++;
+
+      const card = document.getElementById(`card-${i}`);
+      if (card) {
+        card.classList.remove('checked-attend', 'checked-absent');
+        if (status === 'attend') card.classList.add('checked-attend');
+        if (status === 'absent') card.classList.add('checked-absent');
+      }
+
+      const btnAttend = document.getElementById(`btn-attend-${i}`);
+      const btnAbsent = document.getElementById(`btn-absent-${i}`);
+      if (btnAttend) btnAttend.classList.toggle('active', status === 'attend');
+      if (btnAbsent) btnAbsent.classList.toggle('active', status === 'absent');
+
+      // 메모 동기화 (직접 입력 중이 아닐 때만)
+      const ta = document.getElementById(`memo-${i}`);
+      if (ta && document.activeElement !== ta && s?.memo) {
+        ta.value = s.memo;
+        localState[i].memo = s.memo;
+      }
+    });
+
+    const pct = Math.round((done / schedule.length) * 100);
+    const bar = document.getElementById('progressBar');
+    if (bar) bar.style.width = pct + '%';
+  }
+
+  function renderResults(data) {
+    const attendCount = Object.values(data).filter(d => d?.status === 'attend').length;
+    const absentCount = Object.values(data).filter(d => d?.status === 'absent').length;
+
+    const el = document.getElementById('attendCount');
+    const el2 = document.getElementById('absentCount');
+    if (el) el.textContent = attendCount;
+    if (el2) el2.textContent = absentCount;
+
+    const detail = document.getElementById('resultDetail');
+    if (!detail) return;
+    detail.innerHTML = '';
+
+    schedule.forEach((item, i) => {
+      const s = data[i];
+      const status = s?.status || null;
+      const rowClass = status === 'attend' ? 'attend-row' : status === 'absent' ? 'absent-row' : 'pending-row';
+      const chipClass = status === 'attend' ? 'attend' : status === 'absent' ? 'absent' : 'pending';
+      const chipText = status === 'attend' ? '✅ 출석' : status === 'absent' ? '❌ 결석' : '— 미응답';
+
+      const row = document.createElement('div');
+      row.className = `result-row ${rowClass}`;
+      row.innerHTML = `
+        <div class="result-time">${item.time}</div>
+        <div class="result-name">${item.name}</div>
+        <div class="result-class">${item.cls}</div>
+        <div><span class="status-chip ${chipClass}">${chipText}</span></div>
+        ${s?.memo ? `<div class="result-memo">📝 ${s.memo}</div>` : ''}
+      `;
+      detail.appendChild(row);
+    });
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // 초기 렌더
+  renderCards();
+  renderResults({});
+</script>
+</body>
+</html>
