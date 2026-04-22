@@ -189,8 +189,7 @@ const firebaseConfig = {
 
   /* Memo */
   .card-full { grid-column: 1 / -1; }
-  .memo-block { margin-top: 12px; display: none; }
-  .memo-block.visible { display: block; }
+  .memo-block { margin-top: 12px; display: block; }
   .memo-textarea {
     width: 100%; background: var(--bg-mid);
     border: 1px solid var(--surface-light); border-radius: 8px;
@@ -335,14 +334,13 @@ const firebaseConfig = {
         </div>
         <div class="name-block">
           <div class="name-text">${item.name}</div>
-          <button class="memo-toggle" id="memo-toggle-${i}" onclick="toggleMemo(${i})">✏ 메모 남기기</button>
         </div>
         <div class="attend-toggle">
           <button class="toggle-btn attend" id="btn-attend-${i}" onclick="setStatus(${i}, 'attend')">출석</button>
           <button class="toggle-btn absent" id="btn-absent-${i}" onclick="setStatus(${i}, 'absent')">결석</button>
         </div>
         <div class="memo-block card-full" id="memo-block-${i}">
-          <textarea class="memo-textarea" id="memo-${i}" placeholder="메모를 입력하세요..." oninput="memoChanged(${i})"></textarea>
+          <textarea class="memo-textarea" id="memo-${i}" placeholder="전하고 싶은 메모를 입력하면 자동 저장되유..." oninput="memoChanged(${i})"></textarea>
         </div>
       `;
       list.appendChild(card);
@@ -369,14 +367,6 @@ const firebaseConfig = {
     if (status && window.saveToFirebase) {
       window.saveToFirebase(i, status, localState[i].memo);
     }
-  }
-
-  function toggleMemo(i) {
-    localState[i].memoVisible = !localState[i].memoVisible;
-    const block = document.getElementById(`memo-block-${i}`);
-    const btn = document.getElementById(`memo-toggle-${i}`);
-    if (block) block.classList.toggle('visible', localState[i].memoVisible);
-    if (btn) btn.textContent = localState[i].memoVisible ? '✕ 메모 닫기' : '✏ 메모 남기기';
   }
 
   function syncCardStyles(data) {
