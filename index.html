@@ -22,7 +22,6 @@ const firebaseConfig = {
   appId: "1:760199742092:web:6d2c1309cf3a0e79df71a9"
 };
 
-
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
@@ -172,8 +171,36 @@ const firebaseConfig = {
     background: var(--surface-light); color: var(--text-muted);
     padding: 3px 8px; border-radius: 4px; margin-top: 4px;
   }
-  .name-block { display: flex; flex-direction: column; gap: 4px; }
-  .name-text { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
+  /* name + memo inline block */
+  .name-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .name-text { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; white-space: nowrap; }
+  .memo-input {
+    flex: 1;
+    background: var(--bg-mid);
+    border: 1px solid var(--surface-light);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 12px;
+    padding: 5px 10px;
+    height: 30px;
+    outline: none;
+    transition: border-color 0.2s ease;
+    min-width: 0;
+  }
+  .memo-input::placeholder { color: var(--text-muted); }
+  .memo-input:focus { border-color: var(--court-line); }
 
   .attend-toggle { display: flex; gap: 8px; }
   .toggle-btn {
@@ -186,26 +213,6 @@ const firebaseConfig = {
   .toggle-btn.absent { border-color: var(--absent-color); color: var(--absent-color); }
   .toggle-btn.attend.active { background: var(--attend-color); color: #0a1f0a; }
   .toggle-btn.absent.active { background: var(--absent-color); color: #fff; }
-
-  /* Memo */
-  .card-full { grid-column: 1 / -1; }
-  .memo-block { margin-top: 12px; display: block; }
-  .memo-textarea {
-    width: 100%; background: var(--bg-mid);
-    border: 1px solid var(--surface-light); border-radius: 8px;
-    color: var(--text-primary); font-family: 'Noto Sans KR', sans-serif;
-    font-size: 13px; padding: 10px 14px; resize: vertical; min-height: 60px;
-    outline: none; transition: border-color 0.2s ease;
-  }
-  .memo-textarea::placeholder { color: var(--text-muted); }
-  .memo-textarea:focus { border-color: var(--court-line); }
-  .memo-toggle {
-    background: none; border: none; color: var(--text-muted);
-    font-family: 'Noto Sans KR', sans-serif; font-size: 12px;
-    cursor: pointer; padding: 6px 0 0; display: block;
-    transition: color 0.2s ease; text-decoration: underline; text-underline-offset: 3px;
-  }
-  .memo-toggle:hover { color: var(--court-line); }
 
   /* Divider */
   .divider { height: 1px; background: var(--surface-light); margin: 48px 0; }
@@ -259,8 +266,10 @@ const firebaseConfig = {
   .schedule-card:nth-child(7){animation-delay:.35s}
 
   @media (max-width: 520px) {
-    .schedule-card { grid-template-columns: auto 1fr; }
-    .attend-toggle { grid-column: 1 / -1; }
+    .schedule-card { grid-template-columns: auto 1fr; gap: 14px; }
+    .attend-toggle { grid-column: 1 / -1; justify-content: flex-start; }
+    .name-row { flex-wrap: wrap; }
+    .memo-input { min-width: 120px; }
     .result-row { grid-template-columns: 60px 1fr auto; }
     .result-class { display: none; }
   }
@@ -317,8 +326,8 @@ const firebaseConfig = {
     { cls: 'Z반1', time: '20:00', name: '박윤상' },
   ];
 
-  // 로컬 상태 (메모 토글용)
-  const localState = schedule.map(() => ({ memoVisible: false, memo: '' }));
+  // 로컬 상태
+  const localState = schedule.map(() => ({ memo: '' }));
 
   function renderCards() {
     const list = document.getElementById('scheduleList');
@@ -333,14 +342,17 @@ const firebaseConfig = {
           <div class="class-badge">${item.cls}</div>
         </div>
         <div class="name-block">
-          <div class="name-text">${item.name}</div>
+          <div class="name-row">
+            <div class="name-text">${item.name}</div>
+            <input type="text" class="memo-input" id="memo-${i}"
+              placeholder="메모 (자동저장)"
+              oninput="memoChanged(${i})"
+            />
+          </div>
         </div>
         <div class="attend-toggle">
           <button class="toggle-btn attend" id="btn-attend-${i}" onclick="setStatus(${i}, 'attend')">출석</button>
           <button class="toggle-btn absent" id="btn-absent-${i}" onclick="setStatus(${i}, 'absent')">결석</button>
-        </div>
-        <div class="memo-block card-full" id="memo-block-${i}">
-          <textarea class="memo-textarea" id="memo-${i}" placeholder="전하고 싶은 메모를 입력하면 자동 저장되유..." oninput="memoChanged(${i})"></textarea>
         </div>
       `;
       list.appendChild(card);
@@ -369,6 +381,7 @@ const firebaseConfig = {
     }
   }
 
+
   function syncCardStyles(data) {
     let done = 0;
     schedule.forEach((_, i) => {
@@ -390,9 +403,9 @@ const firebaseConfig = {
 
       // 메모 동기화 (직접 입력 중이 아닐 때만)
       const ta = document.getElementById(`memo-${i}`);
-      if (ta && document.activeElement !== ta && s?.memo) {
-        ta.value = s.memo;
-        localState[i].memo = s.memo;
+      if (ta && document.activeElement !== ta && s?.memo !== undefined) {
+        ta.value = s.memo || '';
+        localState[i].memo = s.memo || '';
       }
     });
 
